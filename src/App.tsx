@@ -1,46 +1,171 @@
-import React, { lazy, useRef } from "react";
-import { Swiper, SwiperSlide } from "swiper/react";
-import "swiper/css";
-const contact = lazy(() => import("./components/Contact"));
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  addData,
+  deleteData,
+  getData,
+  editData,
+  addImage,
+  deleteImg,
+  completeData,
+} from "./counter/counterSlice";
+import { useForm } from "react-hook-form";
+import {
+  Modal,
+  Card,
+  Button,
+  Checkbox,
+  Upload,
+  Row,
+  Col,
+  Image,
+  Space,
+} from "antd";
+
+let apiImg = "http://37.27.29.18:8001/images";
 
 const App = () => {
-  const swiperRef = useRef<any>(null); // ref барои идора кардани свайпер
+  const [idx, setIdx] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const showModal = (e) => {
+    if (e) {
+      setIdx(e);
+      reset({
+        name: e.name,
+        description: e.description,
+      });
+    } else {
+      setIdx(null);
+      reset({
+        name: "",
+        description: "",
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleCancel = () => {
+    setIsModalOpen(false);
+  };
+
+  const { data } = useSelector((state) => state.counter);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(getData());
+  }, []);
+
+  const { register, handleSubmit, reset } = useForm();
+
+  const Submit = async (values: any) => {
+    if (idx) {
+      await dispatch(
+        editData({
+          id: (idx as any).id,
+          updateUser: values,
+        }) as any,
+      );
+    } else {
+      await dispatch(
+        addData({ ...values, images: Array.from(values.images || []) }) as any,
+      );
+    }
+    dispatch(getData() as any);
+    setIsModalOpen(false);
+    reset();
+  };
 
   return (
-    <div style={{ width: "600px", margin: "0 auto" }}>
-      <Swiper
-        onSwiper={(swiper) => (swiperRef.current = swiper)} // гирифтани объект свайпер
-        slidesPerView={3} // чанд слайд намоиш дода шавад
-        spaceBetween={20} // фосилаи байни слайдҳо
-      >
-        <SwiperSlide style={{ background: "#ff9999", height: "150px" }}>
-          Slide 1
-        </SwiperSlide>
-        <SwiperSlide style={{ background: "#99ff99", height: "150px" }}>
-          Slide 2
-        </SwiperSlide>
-        <SwiperSlide style={{ background: "#9999ff", height: "150px" }}>
-          Slide 3
-        </SwiperSlide>
-        <SwiperSlide style={{ background: "#ffcc99", height: "150px" }}>
-          Slide 4
-        </SwiperSlide>
-        <SwiperSlide style={{ background: "#cc99ff", height: "150px" }}>
-          Slide 5
-        </SwiperSlide>
-      </Swiper>
+    <div style={{ padding: "20px" }}>
+      <Button type="primary" onClick={() => showModal(null)}>
+        Add New
+      </Button>
 
-      {/* Кнопкаҳои ҳаракат */}
-      <div style={{ marginTop: "20px", textAlign: "center" }}>
-        <button
-          onClick={() => swiperRef.current?.slidePrev()} // ба слайди қаблӣ ҳаракат
-          style={{ marginRight: "10px" }}
-        >
-          ← Prev
-        </button>
-        <button onClick={() => swiperRef.current?.slideNext()}>Next →</button>{" "}
-        {/* ба слайди навбатӣ ҳаракат */}
-      </div>
+      <Row gutter={[16, 16]} style={{ marginTop: "20px" }}>
+        {data?.map((e) => (
+          <Col span={6} key={e.id}>
+            <Card
+              title={e.name}
+              extra={
+                <Checkbox
+                  checked={e.isCompleted}
+                  onChange={async () => {
+                    await dispatch(completeData(e.id) as any);
+                    dispatch(getData() as any);
+                  }}
+                >
+                  {e.isCompleted ? "Active" : "Inactive"}
+                </Checkbox>
+              }
+              actions={[
+                <Button
+                  danger
+                  onClick={() => dispatch(deleteData(e.id) as any)}
+                >
+                  Delete
+                </Button>,
+                <Button onClick={() => showModal(e)}>Edit</Button>,
+              ]}
+            >
+              <p>{e.description}</p>
+
+              <Space wrap>
+                {e?.images?.map((img: any) => (
+                  <div key={img.id}>
+                    <Image width={80} src={`${apiImg}/${img.imageName}`} />
+                    <Button
+                      danger
+                      size="small"
+                      onClick={async () => {
+                        await dispatch(deleteImg(img.id) as any);
+                        dispatch(getData() as any);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                ))}
+              </Space>
+
+              <Upload
+                multiple
+                showUploadList={false}
+                beforeUpload={() => false}
+                onChange={async (info) => {
+                  const files = info.fileList.map((f) => f.originFileObj);
+                  await dispatch(addImage({ id: e.id, images: files }) as any);
+                  dispatch(getData() as any);
+                }}
+              >
+                <Button style={{ marginTop: "10px" }}>Add Image</Button>
+              </Upload>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <Modal
+        title="Form"
+        open={isModalOpen}
+        onCancel={handleCancel}
+        footer={null}
+      >
+        <form onSubmit={handleSubmit(Submit)}>
+          <Space direction="vertical" style={{ width: "100%" }}>
+            <input placeholder="Name" {...register("name")} />
+            <input placeholder="Description" {...register("description")} />
+            <input
+              {...register("images", { required: !idx })}
+              multiple
+              type="file"
+            />
+            <Button type="primary" htmlType="submit">
+              Submit
+            </Button>
+          </Space>
+        </form>
+      </Modal>
     </div>
   );
 };
