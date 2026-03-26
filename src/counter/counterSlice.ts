@@ -3,6 +3,26 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 import axios from "axios";
 let api = "http://37.27.29.18:8001/api/to-dos";
 let compApi = "http://37.27.29.18:8001/completed";
+export let apiImg = "http://37.27.29.18:8001/images";
+interface IImage {
+  id: number;
+  imageName: string;
+}
+interface IData {
+  id: number;
+  isCompleted: boolean;
+  images: IImage[];
+  name: string;
+  description: string;
+}
+
+const initialState = {
+  value: 0,
+  data: [],
+  loading: false,
+  error: null,
+};
+
 export const getData = createAsyncThunk("counter/getData", async () => {
   try {
     const { data } = await axios.get(api);
@@ -11,12 +31,11 @@ export const getData = createAsyncThunk("counter/getData", async () => {
     console.log(error);
   }
 });
-
 export const addData = createAsyncThunk(
   "counter/addData",
-  async (newUser: any, { rejectWithValue }) => {
+  async (newUser, { dispatch }) => {
     try {
-      const formData = new FormData();
+      let formData = new FormData();
       formData.append("Name", newUser.name);
       formData.append("Description", newUser.description);
       for (let i = 0; i < newUser.images.length; i++) {
@@ -24,88 +43,80 @@ export const addData = createAsyncThunk(
       }
       const { data } = await axios.post(api, formData);
       return data.data;
-    } catch (error: any) {
-      console.error(error);
+    } catch (error) {
+      console.log(error);
     }
   },
 );
-
 export const deleteData = createAsyncThunk(
   "counter/deleteData",
-  async (id: number) => {
+  async (id: number, { dispatch }) => {
     try {
-      const { data } = await axios.delete(`${api}?id=${id}`);
-      return data.data;
-    } catch (error: any) {
-      console.error(error);
+      await axios.delete(`${api}?id=${id}`);
+      dispatch(getData());
+    } catch (error) {
+      console.log(error);
     }
   },
 );
 
 export const editData = createAsyncThunk(
   "counter/editData",
-  async (
-    { id, updateUser }: { id: number; updateUser: any },
-    { rejectWithValue },
-  ) => {
+  async ({ id, updateUser }: { id: number; updateUser: any }, { dispatch }) => {
     try {
-      const payload = {
+      const editData = {
         id: id,
         name: updateUser.name,
         description: updateUser.description,
       };
-      const { data } = await axios.put(api, payload);
+      const { data } = await axios.put(`${api}?id=${id}`, editData);
       return data.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data || error.message);
+    } catch (error) {
+      console.log(error);
     }
   },
 );
 
-export const addImage = createAsyncThunk(
-  "counter/addImage",
-  async ({ id, images }: { id: number; images: any }, { rejectWithValue }) => {
+export const addImg = createAsyncThunk(
+  "counter/addImg",
+  async ({ id, images }: { id: number; images: any }, { dispatch }) => {
+    if (!images || images.length === 0) return;
     try {
-      const formData = new FormData();
+      let formData = new FormData();
       for (let i = 0; i < images.length; i++) {
         formData.append("Images", images[i]);
       }
       const { data } = await axios.post(`${api}/${id}/images`, formData);
       return data.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data || error.message);
+    } catch (error) {
+      console.log(error);
     }
   },
-);
-export const deleteImg = createAsyncThunk(
-  "counter/deleteImg",
-  async (imageId: number) => {
-    try {
-      const { data } = await axios.delete(`${api}/images/${imageId}`);
-      return data.data;
-    } catch (error: any) {
-      console.error(error);
-    }
-  },
-);
-export const completeData = createAsyncThunk(
-  "counter/completeData",
-  async (id: number, { rejectWithValue }) => {
-    try {
-      const { data } = await axios.put(`${compApi}?id=${id}`);
-      return data.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data || error.message);
-    }
-  }
 );
 
-const initialState = {
-  value: 0,
-  data: [],
-  loading: false,
-  error: null,
-};
+export const deleteImg = createAsyncThunk(
+  "counter/deleteImg",
+  async (id: number, { dispatch }) => {
+    try {
+      await axios.delete(`${api}/images/${id}`);
+      dispatch(getData());
+    } catch (error) {
+      console.log(error);
+    }
+  },
+);
+
+export const completeData = createAsyncThunk(
+  "counter/completeData",
+  async (id: number, { dispatch }) => {
+    try {
+      await axios.put(`${compApi}?id=${id}`);
+      dispatch(getData());
+    } catch (error) {
+      console.log(error);
+    }
+  },
+);
 
 export const counterSlice = createSlice({
   name: "counter",
@@ -127,17 +138,18 @@ export const counterSlice = createSlice({
       state.loading = false;
       state.data.push(action.payload);
     });
-    builder.addCase(deleteData.fulfilled, (state, action) => {
+    builder.addCase(editData.fulfilled, (state, action) => {
       state.loading = false;
-      state.data = state.data.filter((e: any) => e.id !== action.payload.id);
+    });
+    builder.addCase(addImg.fulfilled, (state, action) => {
+      state.loading = false;
     });
     builder.addCase(deleteImg.fulfilled, (state, action) => {
       state.loading = false;
-      state.data = state.data.filter((e: any) => e.id !== action.payload.id);
     });
     builder.addCase(completeData.fulfilled, (state, action) => {
       state.loading = false;
-      state.data = state.data.filter((e: any) => e.id !== action.payload.id);
+      state.data = state.data.map((e: IData) => e.id === action.payload.id ? action.payload : e);
     });
   },
 });
